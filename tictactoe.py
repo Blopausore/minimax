@@ -8,7 +8,8 @@ Player one have id 1 and player two id 2.
 ##
 #%%
 import numpy as np
-
+import math
+import cProfile 
 
 RULES = """
 
@@ -54,37 +55,57 @@ def del_board():
     
 # %%
 
+
 def check_win(board):
     """
-    Check if there is a winner.
-    If there is one, return is id.
-    If there is two winner at the same time (because the rules were not followed),
-    it will return the first winner identified (line, then rows, then diags).
+    Take a board as input and return the winner
+    If there is no winner, return 0
     """
-    
-    # Check each lines
-    for line in board:
-        # If all the elements of the line are equal to the first one 
-        if line[0] != .0 and np.all(line == line[0]):
-            return line[0]
-    
-    # Check each rows
-    for row in board.T:
-        # If all the elements of the row are equal to the first one
-        if row[0] != .0 and np.all(row == row[0]):
-            return row[0]
-        
-    # Check the first diag
-    if board[0, 0] != .0 and np.all(np.diagonal(board) == board[0, 0]):
+    for i in range(3):
+        if board[i, 0] == board[i, 1] == board[i, 2] and board[i, 0] != 0:
+            return board[i, 0]
+        if board[0, i] == board[1, i] == board[2, i] and board[0, i] != 0:
+            return board[0, i]
+    if board[0, 0] == board[1, 1] == board[2, 2] and board[0, 0] != 0:
         return board[0, 0]
-    
-    # Check the second diag
-    if board[0, 2] != .0 and np.all(np.diagonal(np.fliplr(board)) == board[0, 2]):
+    if board[0, 2] == board[1, 1] == board[2, 0] and board[0, 2] != 0:
         return board[0, 2]
-    
     return 0
 
-def check_end(board):
+
+
+##  AFTER TESTING THIS ONE IS MUCH WORSE THAN THE ONE BEFORE
+# def check_win(board):
+#     """
+#     Check if there is a winner.
+#     If there is one, return is id.
+#     If there is two winner at the same time (because the rules were not followed),
+#     it will return the first winner identified (line, then rows, then diags).
+#     """
+    
+#     # Check each lines
+#     for line in board:
+#         # If all the elements of the line are equal to the first one 
+#         if line[0] != .0 and np.all(line == line[0]):
+#             return line[0]
+    
+#     # Check each rows
+#     for row in board.T:
+#         # If all the elements of the row are equal to the first one
+#         if row[0] != .0 and np.all(row == row[0]):
+#             return row[0]
+        
+#     # Check the first diag
+#     if board[0, 0] != .0 and np.all(np.diagonal(board) == board[0, 0]):
+#         return board[0, 0]
+    
+#     # Check the second diag
+#     if board[0, 2] != .0 and np.all(np.diagonal(np.fliplr(board)) == board[0, 2]):
+#         return board[0, 2]
+    
+#     return 0
+
+def check_full(board):
     """
     Check if the board is complete
     Return True if it is 
@@ -134,13 +155,13 @@ def play_random(board, id):
 ##
 #%%
 
-def maximin(board, player_id, computer_id, depth):
+def maximin(board, player, computer, depth=0):
     # print(f"Iteration {depth}")
     # print(board)
     # input("\n")
     # del_board()
     winner = check_win(board)
-    if winner == player_id:
+    if winner == player:
         return -1
     elif winner != 0:
         return 1
@@ -148,21 +169,21 @@ def maximin(board, player_id, computer_id, depth):
     moves = np.argwhere(board == 0)
     if moves.shape[0] == 0:
         return 0
-    scores = np.zeros(moves.shape[0])
+    worse_score = math.inf
     for i in range(moves.shape[0]):
-        board[moves[i][0], moves[i][1]] = player_id
-        scores[i] = minimax(board, player_id, computer_id, depth+1)
+        board[moves[i][0], moves[i][1]] = player
+        worse_score = min(minimax(board, player, computer, depth+1), worse_score)
         board[moves[i][0], moves[i][1]] = 0
-    return np.min(scores)
+    return worse_score
 
-def minimax(board, player_id, computer_id, depth=0):
+def minimax(board, player, computer, depth=0):
     # print(f"Iteration {depth}")
     # print(board)
     # input("\n")
     # del_board()
 
     winner = check_win(board)
-    if winner == computer_id:
+    if winner == computer:
         return 1
     elif winner != 0:
         return -1
@@ -170,23 +191,43 @@ def minimax(board, player_id, computer_id, depth=0):
     moves = np.argwhere(board == 0)
     if moves.shape[0] == 0:
         return 0
-    scores = np.zeros(moves.shape[0]) 
+
+    best_score = -math.inf
     for i in range(moves.shape[0]):
-        board[moves[i][0], moves[i][1]] = computer_id
-        scores[i] = maximin(board, player_id, computer_id, depth+1)
+        board[moves[i][0], moves[i][1]] = computer
+        best_score = max(maximin(board, player, computer, depth+1), best_score)
         board[moves[i][0], moves[i][1]] = 0
-    if depth == 0:
-        return moves[np.argmax(scores)]
-    return np.max(scores)
+
+    return best_score
+
 
 def computer_play(board, player, computer):
-    move = minimax(board, player, computer)
+    moves = np.argwhere(board == 0)
+    scores = np.zeros(moves.shape[0])
+    for i in range(moves.shape[0]):
+        board[moves[i][0], moves[i][1]] = computer
+        scores[i] = maximin(board, player, computer)
+        board[moves[i][0], moves[i][1]] = 0
+    move = moves[np.argmax(scores)]
     board[move[0], move[1]] = computer
+
+def check_end(board):
+    winner = check_win(board)
+    if winner != 0:
+        return True, winner
+    elif check_full(board):
+        winner = 0
+        return True, winner
+    return False, 0
 
 ##
 #%%
 
+
 def main():
+    """
+    Use this one if you want to play against the computer.
+    """
     done = False
     print(RULES)
     board = np.zeros((3, 3), dtype=int)
@@ -200,20 +241,51 @@ def main():
     while not done:
         # Computer turn
         computer_play(board, player, computer)
-        winner = check_win(board)
-        # del_board()
-        if winner != 0:
-            done = True
-        elif check_end(board):
-            done = True
-            winner = 0
+        done, winner = check_end(board)
+        if done: break
         print_board(board)
         ask_to_play(board, player)
         del_board()
+        done, winner = check_end(board)
+        if done: break
     print_board(board)
     print(winner)
-        
+
+def main_():
+    done = False
+    
+    board = np.zeros((3, 3), dtype=int)
+    player = 1
+    computer = 2
+    
+    while not done:
+        # Computer turn
+        computer_play(board, computer, player)
+        winner = check_win(board)
+        # del_board()
+        if winner != 0:
+            break
+        elif check_full(board):
+            winner = 0
+            break
+    
+        # Computer turn
+        computer_play(board, player, computer)
+        winner = check_win(board)
+        # del_board()
+        if winner != 0:
+            break
+        elif check_full(board):
+            winner = 0
+            break
+
+    
+profile = cProfile.Profile()
+profile.enable()
 main()
+
+profile.disable()
+profile.dump_stats("profile.cprof")
 
 # %%
 
